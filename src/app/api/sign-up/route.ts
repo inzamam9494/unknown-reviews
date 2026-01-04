@@ -7,7 +7,7 @@ import { success } from "zod";
 export async function POST(request: Request) {
     await dbConnect();
     try {
-        // const {username, email, password} = await request.json
+        const {username, email, password} = await request.json()
     } catch (error) {
         console.error("Error in sign-up route:", error);
         return Response.json(
