@@ -1,15 +1,15 @@
 "use client";
+
+import { ApiResponse } from "@/src/types/ApiResponse";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import * as z from "zod";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+// import { useDebounce } from 'usehooks-ts';
 import { useDebounceValue } from "usehooks-ts";
-import { toast } from "sonner";
-import { useRouter } from "next/navigation";
-import { signUpSchema } from "@/src/schemas/signUpSchema";
-import axios, { AxiosError } from "axios";
-import { ApiResponse } from "@/src/types/ApiResponse";
+import * as z from "zod";
+
+import { Button } from "@/src/components/ui/button";
 import {
   Form,
   FormField,
@@ -18,18 +18,23 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/src/components/ui/button";
+// import { useToast } from '@/src/components/ui/use-toast';
+import { toast } from "sonner";
+import axios, { AxiosError } from "axios";
 import { Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { signUpSchema } from "@/src/schemas/signUpSchema";
 
-const page = () => {
+export default function SignUpForm() {
   const [username, setUsername] = useState("");
   const [usernameMessage, setUsernameMessage] = useState("");
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const debouncedUsername = useDebounceValue(username, 300);
-  const router = useRouter();
+  const [debouncedUsername] = useDebounceValue(username, 300);
 
-  //zod implementation
+  const router = useRouter();
+  //   const { toast } = useToast();
+
   const form = useForm<z.infer<typeof signUpSchema>>({
     resolver: zodResolver(signUpSchema),
     defaultValues: {
@@ -41,19 +46,21 @@ const page = () => {
 
   useEffect(() => {
     const checkUsernameUnique = async () => {
-      if (!debouncedUsername) {
-        setIsCheckingUsername(true);
-        setUsernameMessage("");
+      if (debouncedUsername && debouncedUsername.trim().length >= 2) {
+        setIsCheckingUsername(false);
+        setUsernameMessage(""); // Reset message
+
+         setIsCheckingUsername(true);
+    setUsernameMessage('');
         try {
-          const response = await axios.get(
+          const response = await axios.get<ApiResponse>(
             `/api/check-username-unique?username=${debouncedUsername}`,
           );
           setUsernameMessage(response.data.message);
         } catch (error) {
           const axiosError = error as AxiosError<ApiResponse>;
           setUsernameMessage(
-            axiosError.response?.data.message ??
-              "An error occurred while checking username.",
+            axiosError.response?.data.message ?? "Error checking username",
           );
         } finally {
           setIsCheckingUsername(false);
@@ -67,18 +74,23 @@ const page = () => {
     setIsSubmitting(true);
     try {
       const response = await axios.post<ApiResponse>("/api/sign-up", data);
+
       toast.success(response.data.message);
+
       router.replace(`/verify/${username}`);
+
       setIsSubmitting(false);
     } catch (error) {
-      console.error("Error during sign-up of user", error);
+      console.error("Error during sign-up:", error);
+
       const axiosError = error as AxiosError<ApiResponse>;
-      setUsernameMessage(
-        axiosError.response?.data.message ??
-          "An error occurred while checking username.",
-      );
+
+      // Default error message
       let errorMessage = axiosError.response?.data.message;
+      ("There was a problem with your sign-up. Please try again.");
+
       toast.error("Sign-up failed: " + errorMessage);
+
       setIsSubmitting(false);
     }
   };
@@ -88,9 +100,9 @@ const page = () => {
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-md">
         <div className="text-center">
           <h1 className="text-4xl font-extrabold tracking-tight lg:text-5xl mb-6">
-            Welcome Back to True Feedback
+            Join True Feedback
           </h1>
-          <p className="mb-4">Sign in to continue your secret conversations</p>
+          <p className="mb-4">Sign up to start your anonymous adventure</p>
         </div>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -99,45 +111,77 @@ const page = () => {
               control={form.control}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email/Username</FormLabel>
-                  <Input {...field} />
+                  <FormLabel>Username</FormLabel>
+                  <Input
+                    {...field}
+                    onChange={(e) => {
+                      field.onChange(e);
+                      setUsername(e.target.value);
+                    }}
+                  />
+                  {/* {isCheckingUsername && <Loader2 className="animate-" />} */}
+                  {!isCheckingUsername && usernameMessage && (
+                    <p
+                      className={`text-sm ${
+                        usernameMessage === "Username is available"
+                          ? "text-green-500"
+                          : "text-red-500"
+                      }`}
+                    >
+                      {usernameMessage}
+                    </p>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
             />
+            <FormField
+              name="email"
+              control={form.control}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <Input {...field} name="email" />
+                  <p className="text-muted text-gray-400 text-sm">
+                    We will send you a verification code
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <FormField
               name="password"
               control={form.control}
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Password</FormLabel>
-                  <Input type="password" {...field} />
+                  <Input type="password" {...field} name="password" />
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin"/> Please wait
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Please wait
                 </>
               ) : (
-                "Signup"
+                "Sign Up"
               )}
             </Button>
           </form>
         </Form>
         <div className="text-center mt-4">
           <p>
-            Not a member yet?{' '}
-            <Link href="/sign-up" className="text-blue-600 hover:text-blue-800">
-              Sign up
+            Already a member?{" "}
+            <Link href="/sign-in" className="text-blue-600 hover:text-blue-800">
+              Sign in
             </Link>
           </p>
         </div>
       </div>
     </div>
   );
-};
-
-export default page;
+}
